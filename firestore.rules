@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isLecturer() {
+      return signedIn() && exists(/databases/$(database)/documents/lecturers/$(request.auth.uid));
+    }
+
+    match /users/{userId}/modules/{moduleId} {
+      allow read: if signedIn() && request.auth.uid == userId;
+      allow create, update, delete: if signedIn()
+        && request.auth.uid == userId
+        && !exists(/databases/$(database)/documents/submissions/$(userId));
+    }
+
+    match /submissions/{userId} {
+      allow read: if signedIn() && (request.auth.uid == userId || isLecturer());
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.uid == userId
+        && request.resource.data.moduleId == "intro-microbes"
+        && request.resource.data.status == "submitted"
+        && !exists(/databases/$(database)/documents/submissions/$(userId));
+      allow update, delete: if false;
+    }
+
+    match /lecturers/{lecturerId} {
+      allow read: if signedIn() && request.auth.uid == lecturerId;
+      allow write: if false;
+    }
+  }
+}
